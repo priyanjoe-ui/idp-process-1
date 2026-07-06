@@ -1,0 +1,389 @@
+{
+  "Applications": [
+    {
+      "ApplicationName": "AFLCOR",
+      "ClassificationMode": "Sequential",
+      "BlankPageMaxWordCount": 5,
+      "DocumentTypes": [
+        {
+          "DocumentTypeName": "CORRDOC",
+          "PageTypes": [
+            {
+              "PageType": "MainPage",
+              "Fields": [
+                {
+                  "FieldName": "PolicyNumber",
+                  "Label": "Policy Number",
+                  "DataType": "String",
+                  "Required": true,
+                  "ExtractionRegex": "[A-Z0-9]{6,12}",
+                  "ValidationRegex": "^[A-Z0-9]{6,12}$",
+                  "ConfidenceScore": 0.95,
+                  "FieldKeywords": ["policy", "number", "policy number"]
+                },
+                {
+                  "FieldName": "CIFNumber",
+                  "Label": "CIFNumber",
+                  "DataType": "String",
+                  "Required": false,
+                  "ExtractionRegex": "[A-Z0-9]+",
+                  "ValidationRegex": "^[A-Z0-9]+$",
+                  "ConfidenceScore": 0.90,
+                  "FieldKeywords": ["cif"]
+                },
+                {
+                  "FieldName": "SSN",
+                  "Label": "SSN",
+                  "DataType": "String",
+                  "Required": false,
+                  "ExtractionRegex": "\\d{3}-?\\d{2}-?\\d{4}",
+                  "ValidationRegex": "^\\d{3}-?\\d{2}-?\\d{4}$",
+                  "ConfidenceScore": 0.90,
+                  "FieldKeywords": ["ssn", "social security"]
+                },
+                {
+                  "FieldName": "CustomerName",
+                  "Label": "Customer Name",
+                  "DataType": "String",
+                  "Required": false,
+                  "ExtractionRegex": "[A-Za-z .'-]+",
+                  "ValidationRegex": "^[A-Za-z .'-]+$",
+                  "ConfidenceScore": 0.85,
+                  "FieldKeywords": ["customer name", "name"]
+                },
+                {
+                  "FieldName": "Address",
+                  "Label": "Address",
+                  "DataType": "String",
+                  "Required": false,
+                  "ConfidenceScore": 0.80,
+                  "FieldKeywords": ["address"]
+                },
+                {
+                  "FieldName": "RouteTo",
+                  "Label": "Route To",
+                  "DataType": "Dropdown",
+                  "Required": false,
+                  "DefaultValue": "Workflow",
+                  "Options": [
+                    { "Value": "Workflow",  "Label": "Workflow" },
+                    { "Value": "Archive",   "Label": "Archive" },
+                    { "Value": "NoNumber",  "Label": "NoNumber" },
+                    { "Value": "Trash",     "Label": "Trash" }
+                  ]
+                },
+                {
+                  "FieldName": "Annotation",
+                  "Label": "Annotation",
+                  "DataType": "Dropdown",
+                  "Required": false,
+                  "DefaultValue": null,
+                  "Options": [
+                    { "Value": "Already Processed", "Label": "Already Processed" },
+                    { "Value": "Blank Pages", "Label": "Blank Pages" },
+                    { "Value": "Cover Sheet Only", "Label": "Cover Sheet Only" },
+                    { "Value": "Draft", "Label": "Draft" },
+                    { "Value": "Illegible", "Label": "Illegible" },
+                    { "Value": "Missing Pages", "Label": "Missing Pages" },
+                    { "Value": "No Attachment", "Label": "No Attachment" },
+                    { "Value": "RF Claims Account Experience Report", "Label": "RF Claims Account Experience Report" },
+                    { "Value": "RF Imaging Hard Copy Request-NY Applications", "Label": "RF Imaging Hard Copy Request-NY Applications" },
+                    { "Value": "RF PAC", "Label": "RF PAC" },
+                    { "Value": "RF to Accounts Payable", "Label": "RF to Accounts Payable" },
+                    { "Value": "RF to ACT Verification Call", "Label": "RF to ACT Verification Call" },
+                    { "Value": "RF to Aflac Customer Service", "Label": "RF to Aflac Customer Service" },
+                    { "Value": "RF to Agents Accounting", "Label": "RF to Agents Accounting" },
+                    { "Value": "RF to Bad Files", "Label": "RF to Bad Files" },
+                    { "Value": "RF to Bankruptcies", "Label": "RF to Bankruptcies" },
+                    { "Value": "RF to CAIC", "Label": "RF to CAIC" },
+                    { "Value": "RF to Claims", "Label": "RF to Claims" },
+                    { "Value": "RF to Collections", "Label": "RF to Collections" },
+                    { "Value": "RF to Complaints", "Label": "RF to Complaints" },
+                    { "Value": "RF to Do Not Contact", "Label": "RF to Do Not Contact" },
+                    { "Value": "RF to Field Contracting", "Label": "RF to Field Contracting" },
+                    { "Value": "RF to Flex One", "Label": "RF to Flex One" },
+                    { "Value": "RF to Flex One Salary Redirection Agreements", "Label": "RF to Flex One Salary Redirection Agreements" },
+                    { "Value": "RF to FS Indexing", "Label": "RF to FS Indexing" },
+                    { "Value": "RF to FS Indexing (Financial Services)", "Label": "RF to FS Indexing (Financial Services)" },
+                    { "Value": "RF to Group", "Label": "RF to Group" },
+                    { "Value": "RF to HQ Billing", "Label": "RF to HQ Billing" },
+                    { "Value": "RF to Imaging Hard Copy Request", "Label": "RF to Imaging Hard Copy Request" },
+                    { "Value": "RF to Incentives", "Label": "RF to Incentives" },
+                    { "Value": "RF to Legal", "Label": "RF to Legal" },
+                    { "Value": "RF to Military Orders", "Label": "RF to Military Orders" },
+                    { "Value": "RF to New Account Set Up", "Label": "RF to New Account Set Up" },
+                    { "Value": "RF to New Business", "Label": "RF to New Business" },
+                    { "Value": "RF to NY Billing", "Label": "RF to NY Billing" },
+                    { "Value": "RF to NY Claims", "Label": "RF to NY Claims" },
+                    { "Value": "RF to NY Fax", "Label": "RF to NY Fax" },
+                    { "Value": "RF to NY Group", "Label": "RF to NY Group" },
+                    { "Value": "RF to NY New Account Set Up", "Label": "RF to NY New Account Set Up" },
+                    { "Value": "RF to NY PHS", "Label": "RF to NY PHS" },
+                    { "Value": "RF to NY Reissue", "Label": "RF to NY Reissue" },
+                    { "Value": "RF to NY Rescan", "Label": "RF to NY Rescan" },
+                    { "Value": "RF to PHS", "Label": "RF to PHS" },
+                    { "Value": "RF to Recon", "Label": "RF to Recon" },
+                    { "Value": "RF to Reissue", "Label": "RF to Reissue" },
+                    { "Value": "RF to ser@aflac.com", "Label": "RF to ser@aflac.com" },
+                    { "Value": "RF to State License", "Label": "RF to State License" },
+                    { "Value": "RF to Tax Department", "Label": "RF to Tax Department" },
+                    { "Value": "RF to Underwriting", "Label": "RF to Underwriting" },
+                    { "Value": "Unable to Locate/Identify", "Label": "Unable to Locate/Identify" }
+                  ]
+                },
+                {
+                  "FieldName": "Comment",
+                  "Label": "Comment",
+                  "DataType": "String",
+                  "Required": false
+                },
+                {
+                  "FieldName": "CompanyCode",
+                  "Label": "Company Code",
+                  "DataType": "Dropdown",
+                  "Required": false,
+                  "DefaultValue": "01",
+                  "Options": [
+                    { "Value": "01", "Label": "01" },
+                    { "Value": "02", "Label": "02" }
+                  ]
+                },
+                {
+                  "FieldName": "ScanBatch",
+                  "Label": "Scan Batch",
+                  "DataType": "String",
+                  "Required": false,
+                  "Disabled": true,
+                  "AutoPopulateFrom": "batchId"
+                },
+                {
+                  "FieldName": "ReceivedDate",
+                  "Label": "Received Date",
+                  "DataType": "String",
+                  "Required": false,
+                  "Disabled": true,
+                  "AutoPopulateFrom": "jobStartTime",
+                  "Format": "YYYYMMDD"
+                },
+                {
+                  "FieldName": "Origin",
+                  "Label": "Origin",
+                  "DataType": "String",
+                  "Required": false,
+                  "Disabled": true,
+                  "AutoPopulateFrom": "source",
+                  "Transform": "uppercase"
+                }
+              ],
+              "LineItems": {
+                "Name": "lineitem",
+                "EmptyText": "No items to display",
+                "Position":6,
+                "MinRows": 0,
+                "Columns": [
+                  {
+                    "FieldName": "Policy",
+                    "Label": "Policy",
+                    "DataType": "String",
+                    "Required": true
+                  },
+                  {
+                    "FieldName": "CustomerName",
+                    "Label": "Customer Name",
+                    "DataType": "String",
+                    "Required": false
+                  },
+                  {
+                    "FieldName": "Status",
+                    "Label": "Status",
+                    "DataType": "String",
+                    "Required": false
+                  },
+                  {
+                    "FieldName": "LOB",
+                    "Label": "LOB",
+                    "DataType": "String",
+                    "Required": false
+                  },
+                  {
+                    "FieldName": "TransCode1",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": true,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode2",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode3",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode4",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode5",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode6",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode7",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode8",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode9",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "TransCode10",
+                    "Label": "Trans Code",
+                    "DataType": "Dropdown",
+                    "Required": false,
+                    "OptionsRef": "TransCodes"
+                  },
+                  {
+                    "FieldName": "IssueState",
+                    "Label": "Issue State",
+                    "DataType": "String",
+                    "Required": false
+                  },
+                  {
+                    "FieldName": "BillForm",
+                    "Label": "Bill Form",
+                    "DataType": "String",
+                    "Required": false
+                  },
+                  {
+                    "FieldName": "PlanCode",
+                    "Label": "Plan Code",
+                    "DataType": "String",
+                    "Required": false
+                  }
+                ]
+              }
+            },
+            { "PageType": "TrailingPage" },
+            {
+              "PageType": "CoverPage",
+              "Keywords": ["fax cover", "transmittal", "cover sheet"]
+            },
+            { "PageType": "BlankPage", "Keywords": [] }
+          ]
+        }
+      ]
+    }
+  ],
+  "Dictionaries": {
+    "TransCodes": [
+      { "Value": "1A", "Label": "1A - 09051026 - Six Code Suspense" },
+      { "Value": "1B", "Label": "1B - 100301162 - GA Transfers" },
+      { "Value": "1C", "Label": "1C - 100301161 - NY Transfers" },
+      { "Value": "1D", "Label": "1D - 100301164" },
+      { "Value": "1E", "Label": "1E - 100301170 - Voids & Stops" },
+      { "Value": "1F", "Label": "1F - 09051025 - Omega Suspense" },
+      { "Value": "1G", "Label": "1G - 10030118 - Rein Premium" },
+      { "Value": "1H", "Label": "1H - 10032113 - Unapplied Cash" },
+      { "Value": "1I", "Label": "1I - 09045050 - Returned Draft" },
+      { "Value": "1J", "Label": "1J - 100301179 - Ord Life Endow" },
+      { "Value": "1K", "Label": "1K - 10050110 - Ord Life Endow/Dividends" },
+      { "Value": "1L", "Label": "1L - 10016015 - Misc. G3 Discrepancy" },
+      { "Value": "AA", "Label": "AA - Aflac Always" },
+      { "Value": "AC", "Label": "AC - Address Change" },
+      { "Value": "AD", "Label": "AD - Additions" },
+      { "Value": "AF", "Label": "AF - Aflac Affidavit" },
+      { "Value": "AM", "Label": "AM - Assignments" },
+      { "Value": "AS", "Label": "AS - Associate Contact" },
+      { "Value": "AU", "Label": "AU - Advisor Update" },
+      { "Value": "BC", "Label": "BC - Beneficiary Change" },
+      { "Value": "BK", "Label": "BK - Bank Changes" },
+      { "Value": "CC", "Label": "CC - Cancellation" },
+      { "Value": "CE", "Label": "CE - COVID 19" },
+      { "Value": "CI", "Label": "CI - Complaint" },
+      { "Value": "CL", "Label": "CL - T/A from Claims" },
+      { "Value": "CO", "Label": "CO - Continuation of Coverage" },
+      { "Value": "CS", "Label": "CS - Cash Surrender" },
+      { "Value": "DC", "Label": "DC - DOB Changes" },
+      { "Value": "DD", "Label": "DD - Dread Disease Riders" },
+      { "Value": "DE", "Label": "DE - Deletions" },
+      { "Value": "DG", "Label": "DG - POLICY DOWNGRAD" },
+      { "Value": "DN", "Label": "DN - Death Notification" },
+      { "Value": "DL", "Label": "DL - RIDER DELETION" },
+      { "Value": "DP", "Label": "DP - Duplicate Policies" },
+      { "Value": "DR", "Label": "DR - Delay R Code Letter" },
+      { "Value": "EC", "Label": "EC - Rewrites/Excessive Coverage" },
+      { "Value": "EI", "Label": "EI - Errors" },
+      { "Value": "EX", "Label": "EX - 1035 Exchanges" },
+      { "Value": "FL", "Label": "FL - Family Medical Leave" },
+      { "Value": "GC", "Label": "GC - GENDER CHANGE" },
+      { "Value": "GR", "Label": "GR - Life Reactivations" },
+      { "Value": "IC", "Label": "IC - Internet Change" },
+      { "Value": "ID", "Label": "ID - ID Card" },
+      { "Value": "IV", "Label": "IV - Insurance Verification" },
+      { "Value": "LO", "Label": "LO - Loan" },
+      { "Value": "LS", "Label": "LS - Coverage Expiry Reached" },
+      { "Value": "MC", "Label": "MC - Mode Changes" },
+      { "Value": "MR", "Label": "MR - 2nd/3rd Request" },
+      { "Value": "NC", "Label": "NC - Name/Address Change" },
+      { "Value": "O6", "Label": "O6 - Ordinary Life Termination" },
+      { "Value": "OC", "Label": "OC - Occupation Code" },
+      { "Value": "OT", "Label": "OT - Organ Transplant Riders" },
+      { "Value": "PA", "Label": "PA - Power of Attorney" },
+      { "Value": "PV", "Label": "PV - Privacy Information" },
+      { "Value": "PY", "Label": "PY - Payments and Accounting" },
+      { "Value": "RC", "Label": "RC - Replacement Checks" },
+      { "Value": "RE", "Label": "RE - Reinstatements" },
+      { "Value": "RI", "Label": "RI - Reissues" },
+      { "Value": "RK", "Label": "RK - Returned Checks" },
+      { "Value": "RM", "Label": "RM - Returned Mail" },
+      { "Value": "RN", "Label": "RN - Replacement Notices" },
+      { "Value": "RR", "Label": "RR - Rerates" },
+      { "Value": "RS", "Label": "RS - Restorations" },
+      { "Value": "RT", "Label": "RT - Return Call" },
+      { "Value": "SE", "Label": "SE - SS#/Employee# Changes" },
+      { "Value": "SR", "Label": "SR - Skin Cancer Rider" },
+      { "Value": "ST", "Label": "ST - Status" },
+      { "Value": "TR", "Label": "TR - Transfers" },
+      { "Value": "UC", "Label": "UC - Unconversions" },
+      { "Value": "UM", "Label": "UM - Undeliverable Mail With Check" },
+      { "Value": "UP", "Label": "UP - 2401 GRP taking credit; no funds" },
+      { "Value": "WP", "Label": "WP - Waiver of premium" },
+      { "Value": "YK", "Label": "YK - Year 2000 question/problems" },
+      { "Value": "Z1", "Label": "Z1 - Unknown" },
+      { "Value": "NA", "Label": "NA" }
+    ]
+  }
+}
