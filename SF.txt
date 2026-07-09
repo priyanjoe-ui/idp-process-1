@@ -1,0 +1,109 @@
+{
+  "Comment": "IDP pipeline",
+  "StartAt": "Classification",
+  "States": {
+    "Classification": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:651720177345:function:idp-classification",
+      "ResultPath": "$.classificationResult",
+      "Next": "Extraction",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "Extraction": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:651720177345:function:idp-extraction",
+        "Payload": {
+          "queueId.$": "$.queueId",
+          "application.$": "$.application",
+          "taskToken.$": "$$.Task.Token"
+        }
+      },
+      "TimeoutSeconds": 900,
+      "ResultPath": "$.extractionResult",
+      "Next": "Validation"
+    },
+    "Validation": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:651720177345:function:idp-validation",
+      "Parameters": {
+        "queueId.$": "$.queueId",
+        "application.$": "$.application"
+      },
+      "ResultPath": "$.validationResult",
+      "Next": "NeedsReviewChoice",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "NeedsReviewChoice": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.validationResult.needsManualReview",
+          "BooleanEquals": true,
+          "Next": "ManualReview"
+        }
+      ],
+      "Default": "Export"
+    },
+    "ManualReview": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:651720177345:function:idp-manual-review",
+        "Payload": {
+          "queueId.$": "$.queueId",
+          "application.$": "$.application",
+          "taskToken.$": "$$.Task.Token"
+        }
+      },
+      "TimeoutSeconds": 86400,
+      "ResultPath": "$.reviewResult",
+      "Next": "Export"
+    },
+    "Export": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:651720177345:function:idp-export",
+      "Parameters": {
+        "queueId.$": "$.queueId",
+        "application.$": "$.application"
+      },
+      "ResultPath": "$.exportResult",
+      "End": true,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ]
+    }
+  }
+}
