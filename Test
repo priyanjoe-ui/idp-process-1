@@ -1,1 +1,5 @@
 https://hjizjld6xj5x6qbtmiub55wdcu0kpqdv.lambda-url.us-east-2.on.aws/
+
+if we have multiple step function pipeline for different applications, how we will view them in UI?
+
+this one starts with classification. Our actual workflow is file drops in s3 bucket in particular folder of the application. And it triggers the SQS where our ingestion lambda polls from queue and process the input file and triggers the step function to kick start classification. This is for one app. What about i add multiple apps which process files from different input folders. So do we need multiple step fucntion? or different ingestion lambda for each application with respective trigger or poll form queue. what is the best way to do?
