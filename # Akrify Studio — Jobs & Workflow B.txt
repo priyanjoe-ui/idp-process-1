@@ -1,0 +1,226 @@
+# Akrify Studio — Jobs & Workflow Builder screen: implementation brief
+
+## Context
+
+You are implementing one screen of a larger internal tool called **Akrify Studio** — an AWS-based Intelligent Document Processing platform built for Aflac (via Cognizant, in a CloudBoost-governed AWS environment). The screen is the **Jobs & Workflow Builder**, which lets a user visually construct a document-processing pipeline that gets deployed as a real AWS Step Functions state machine.
+
+The frontend is **Angular 17** (standalone components, Signals for state, no NgRx). The backend is **API Gateway (HTTP API) + Lambda (Node.js) + DynamoDB**, deployed in an AWS account with these constraints:
+
+- IAM boundary policy explicitly denies `iam:CreateRole`. Never create new IAM roles — reuse the existing `LambdaExecutionRole` (or whatever role the existing Step Functions pipeline uses) for any `roleArn` needed by `CreateStateMachine`.
+- Lambda config (env vars, code) is managed through the AWS Lambda Console, not CLI or IaC — keep this in mind if you generate any deployment instructions.
+- AWS account ID: 651720177345, region us-east-2 for existing Lambda/Step Functions resources (confirm before assuming a different region).
+
+## The core design decision — read this first
+
+**Do not build a generic workflow/graph editor with a custom node-edge schema that gets "translated" into Step Functions ASL (Amazon States Language) later.** That translation layer is unnecessary complexity and risks drift between what the user designs and what actually deploys.
+
+Instead: **the canvas's data model IS Amazon States Language, directly.** The JSON the user edits, saves, and deploys is exactly the JSON that gets passed to `CreateStateMachine` / `UpdateStateMachine`. The canvas is a rendering and editing layer over an ASL object — nothing more.
+
+This mirrors how AWS's own Step Functions Workflow Studio works: it renders directly from the `States` map, walking `Next`/`End` for linear chains and `Choices`/`Default` for branches, with no separate internal graph model.
+
+## Reference example — the actual pipeline this screen must be able to represent
+
+This is a real, working state machine from the existing `idp-ingestion` pipeline. Use it as your test fixture and as the shape your data model must support:
+
+\```json
+{
+  "Comment": "IDP pipeline",
+  "StartAt": "Classification",
+  "States": {
+    "Classification": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:651720177345:function:idp-classification",
+      "ResultPath": "$.classificationResult",
+      "Next": "Extraction",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "Extraction": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:651720177345:function:idp-extraction",
+        "Payload": {
+          "queueId.$": "$.queueId",
+          "application.$": "$.application",
+          "taskToken.$": "$$.Task.Token"
+        }
+      },
+      "TimeoutSeconds": 900,
+      "ResultPath": "$.extractionResult",
+      "Next": "Validation"
+    },
+    "Validation": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:651720177345:function:idp-validation",
+      "Parameters": { "queueId.$": "$.queueId", "application.$": "$.application" },
+      "ResultPath": "$.validationResult",
+      "Next": "NeedsReviewChoice",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "NeedsReviewChoice": {
+      "Type": "Choice",
+      "Choices": [
+        { "Variable": "$.validationResult.needsManualReview", "BooleanEquals": true, "Next": "ManualReview" }
+      ],
+      "Default": "Export"
+    },
+    "ManualReview": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-2:651720177345:function:idp-manual-review",
+        "Payload": {
+          "queueId.$": "$.queueId",
+          "application.$": "$.application",
+          "taskToken.$": "$$.Task.Token"
+        }
+      },
+      "TimeoutSeconds": 86400,
+      "ResultPath": "$.reviewResult",
+      "Next": "Export"
+    },
+    "Export": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-2:651720177345:function:idp-export",
+      "Parameters": { "queueId.$": "$.queueId", "application.$": "$.application" },
+      "ResultPath": "$.exportResult",
+      "End": true,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 1,
+          "BackoffRate": 2
+        }
+      ]
+    }
+  }
+}
+\```
+
+Note the important structural feature this exercises: `NeedsReviewChoice` branches into `ManualReview` (condition true) or directly to `Export` (Default) — and **both branches converge back onto the same `Export` state**. Your renderer must detect and correctly render this convergence (see below), not render `Export` twice.
+
+## Visual reference
+
+The UI must visually match **AWS Step Functions Workflow Studio**: three-column layout with a left palette, center canvas, and right inspector. Yellow Start/End circles, rounded-rectangle state boxes each showing a small integration-type label (e.g. "Lambda: Invoke", "Lambda: waitForTaskToken") above a bold state name, thin arrow connectors, Choice states rendering as a labeled box with branches fanning out below (labeled with the branch condition, e.g. "Default" and the boolean expression), and a right-hand inspector panel with state name, a "Test state" action, Next state dropdown, and a Comment field.
+
+## What to build
+
+### 1. TypeScript types mirroring ASL exactly
+
+\```typescript
+interface AslRetry {
+  ErrorEquals: string[];
+  IntervalSeconds: number;
+  MaxAttempts: number;
+  BackoffRate: number;
+}
+
+interface AslCatch {
+  ErrorEquals: string[];
+  Next: string;
+}
+
+interface AslChoiceRule {
+  Variable: string;
+  BooleanEquals?: boolean;
+  StringEquals?: string;
+  NumericEquals?: number;
+  Next: string;
+}
+
+interface AslState {
+  Type: 'Task' | 'Choice' | 'Wait' | 'Parallel' | 'Map' | 'Succeed' | 'Fail';
+  Resource?: string;
+  Parameters?: Record<string, any>;
+  ResultPath?: string;
+  Next?: string;
+  End?: boolean;
+  TimeoutSeconds?: number;
+  Retry?: AslRetry[];
+  Catch?: AslCatch[];
+  Choices?: AslChoiceRule[];
+  Default?: string;
+  Comment?: string;
+}
+
+interface AslDefinition {
+  Comment?: string;
+  StartAt: string;
+  States: Record<string, AslState>;
+}
+\```
+
+### 2. Storage — DynamoDB item shape
+
+No x/y coordinates are stored. Layout is computed at render time from graph structure, exactly like AWS's own designer.
+
+\```
+PK: TENANT#<tenantId>
+SK: WORKFLOW#<workflowId>#draft   (or #v<n> once deployed)
+workflowId: string
+name: string
+definition: AslDefinition   <-- literally the ASL object above
+version: number
+status: 'draft' | 'production'
+stateMachineArn?: string
+updatedAt: number
+\```
+
+### 3. Recursive Angular renderer
+
+Build a standalone, self-referencing component (`StateNodeComponent`) that:
+- Takes a `stateName` + the full `states` map as input
+- Renders the current state as a box (type label + state name)
+- If `Type === 'Choice'`: renders each `Choices[i].Next` as a branch (with a condition label derived from `Variable` + the comparator) plus one branch for `Default`, laid out side-by-side
+- Otherwise, if `Next` exists, recurses into `Next` directly below
+- Emits a `select` event with the state name on click, so a parent component can populate the right-hand inspector
+
+**Convergence handling (important, non-trivial):** Because ASL is a DAG (not a strict tree), two branches can point to the same downstream state — as `ManualReview` and `NeedsReviewChoice`'s `Default` both do here, converging on `Export`. Track visited state names during the recursive walk. When a branch's `Next` points to an already-rendered state, do not re-render the full subtree — render a short "merges into `<StateName>`" connector/stub instead, and ensure the shared state is drawn once at its true convergence point. This convergence-detection logic is the hardest part of this screen — treat it as its own dedicated implementation pass, test it explicitly against the `NeedsReviewChoice → ManualReview/Export` case above, and don't consider the canvas done until this case renders correctly (no duplicate `Export` box).
+
+### 4. Right-hand inspector panel
+
+A reactive form bound to whichever state is selected, with fields that change based on `state.Type`:
+- **Task**: state name, Resource/function ARN, integration pattern (Request Response / Wait for Task Token / Run a Job — inferred from whether `Resource` contains `waitForTaskToken`), Parameters (raw JSON editor is acceptable for v1), ResultPath, TimeoutSeconds, Retry list, Catch list, Next state (read-only display, since Next is structural), Comment
+- **Choice**: list of rule rows (Variable / comparator / value / Next state dropdown), Default state dropdown
+
+### 5. "+" add-state interaction
+
+Match AWS's own UX: a small circular "+" button appears on the connector between two states (or below a terminal state). Clicking it opens a searchable palette (use Angular CDK Overlay, anchored to the button) listing available state types (Lambda: Invoke, Choice, Wait, Parallel, Succeed, Fail — scope this initially to what the IDP pipeline actually uses: Task and Choice). Selecting one inserts a new entry into the `States` map and rewires `Next` pointers to splice it into the chain.
+
+### 6. Save and deploy — no translation layer
+
+- `PUT /workflows/:id` (draft save): writes the `definition` object to DynamoDB exactly as edited — no transformation.
+- `POST /workflows/:id/deploy`:
+  1. Reads the current `definition` from the request body (or DDB draft)
+  2. Checks DDB for an existing `stateMachineArn` for this `workflowId`
+  3. If none exists: calls `stepfunctions.createStateMachine({ name, definition: JSON.stringify(definition), roleArn, type: 'STANDARD' })` — **reuse an existing IAM role that Step Functions can already assume** (check what role the existing `idp-ingestion` state machine uses first; do not attempt to create a new role, since `iam:CreateRole` is denied by the account's boundary policy). Verify the role's trust policy allows `states.amazonaws.com`, and verify `iam:PassRole` is not blocked by the boundary policy (`aws iam simulate-principal-policy` before writing this Lambda).
+  4. If one exists: calls `stepfunctions.updateStateMachine({ stateMachineArn, definition: JSON.stringify(definition) })`
+  5. Writes back the resulting `stateMachineArn` and a bumped `version` number to DDB
+
+## Suggested build order (as separate sessions/passes)
+
+1. ASL TypeScript types + recursive renderer for linear chains only (Classification → Extraction → Validation, no Choice yet) — verify visual match to the AWS screenshot style
+2. Choice state rendering + side-by-side branch layout with condition labels
+3. Convergence detection for the DAG-merge case (test explicitly against `NeedsReviewChoice → ManualReview/Export`)
+4. Right inspector panel forms, per state type
+5. "+" add-state palette (CDK Overlay) + `States` map splicing logic
+6. `workflows-handler` Lambda: `GET/PUT /workflows/:id`, `POST /workflows/:id/deploy` wired to `createStateMachine`/`updateStateMachine`
+
+## What "done" looks like
+
+Loading the example ASL above into the canvas renders: Start circle → Classification → Extraction → Validation → a Choice box branching into (a) ManualReview then converging down into Export, and (b) a Default path converging into that same Export box → End circle. Clicking any state populates the inspector with its real config. Editing a field and saving updates the underlying ASL object. Clicking Deploy creates or updates a real Step Functions state machine using an existing, reused IAM role — no new roles, no CLI/IaC steps, console-manageable throughout.
