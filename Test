@@ -4,3 +4,24 @@ arn:aws:iam::651720177345:role/LambdaExecutionRole
 if we have multiple step function pipeline for different applications, how we will view them in UI?
 
 this one starts with classification. Our actual workflow is file drops iarn:aws:iam::651720177345:role/LambdaExecutionRolen s3 bucket in particular folder of the application. And it triggers the SQS where our ingestion lambda polls from queue and process the input file and triggers the step function to kick start classification. This is for one app. What about i add multiple apps which process files from different input folders. So do we need multiple step fucntion? or different ingestion lambda for each application with respective trigger or poll form queue. what is the best way to do?
+
+[INFO]	2026-07-10T15:13:15.140Z	1f424732-7fc5-5124-bc29-25f971f81696	Event: {
+    "Records": [
+        {
+            "messageId": "cfd770ba-8edf-439a-a346-13520321695c",
+            "receiptHandle": "AQEBt54y3TOSqRbTZN+Fn3VdgxDMrtTruIFpqFhONuYXFBcYmnpVMJ3qtVaG9ZVfmdCWrZgucKflF2XxJsXnCrQRCQf55bXy9rtOBEmu2sVdeRMfEY2ulMS6gbz5IWv/JdeGlO7jaMb+lzQSijEpIFuKlHXHx7qaxrH8nMZmlt0fKCYXlnUgLyx2VBIols87sLhpKN2QjLhmLbdwtkxbw8T/AWHxD1cboLHTHtqcn7Vu+CA3iiCdBcghs68E4aSeSktgn1inJJuiw4A2XqYi21AUm8iUVZ7bPQi+9VtpHyGodmUIWWgUteGWHqJ5CRkzAJyHr7OBxO/hnAwAcKSDfwksPKpLrQIY93bKFTrsHNpBYabH53/gY15/Yztu0iGMZ8UGmn0+u8B2fSvN+WoGOyzJRQ==",
+            "body": "{\"Records\":[{\"eventVersion\":\"2.4\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-east-2\",\"eventTime\":\"2026-07-10T15:13:13.961Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AROAZPPMMW3AR7PY3S3JI:273572@cognizant.com\"},\"requestParameters\":{\"sourceIPAddress\":\"210.18.146.68\"},\"responseElements\":{\"x-amz-request-id\":\"60JY0M21BH5QN85A\",\"x-amz-id-2\":\"4v7xFA/CIAO/Hps9b4DQmXQn1NYBXjXWT3l9tMJlH11jVOWE2Qhfq5FMJnn/oug6qlDskhIKiYF7Rl1n4aQ57czbHHIqgG12\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"idp-ingestion-trigger\",\"bucket\":{\"name\":\"idp-docs-aws-dev\",\"ownerIdentity\":{\"principalId\":\"AAZ6R19HXR470\"},\"arn\":\"arn:aws:s3:::idp-docs-aws-dev\"},\"object\":{\"key\":\"idp/applications/AFLCOR/Import/email/Corr-email-004.zip\",\"size\":15479,\"eTag\":\"cf63c4c30d2ad6a60d0eefe5b92da706\",\"sequencer\":\"006A510C09EA279969\"}}}]}",
+            "attributes": {
+                "ApproximateReceiveCount": "1",
+                "SentTimestamp": "1783696394364",
+                "SenderId": "AROASH5U5TZXDEGJDLSUI:S3-PROD-END",
+                "ApproximateFirstReceiveTimestamp": "1783696394372"
+            },
+            "messageAttributes": {},
+            "md5OfBody": "44001c6c3fb701374b76a5fb2b155c18",
+            "eventSource": "aws:sqs",
+            "eventSourceARN": "arn:aws:sqs:us-east-2:651720177345:idp-intake-queue",
+            "awsRegion": "us-east-2"
+        }
+    ]
+}
