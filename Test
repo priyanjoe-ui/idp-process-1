@@ -2,12 +2,57 @@ https://hjizjld6xj5x6qbtmiub55wdcu0kpqdv.lambda-url.us-east-2.on.aws/
 arn:aws:iam::651720177345:role/LambdaExecutionRole
   
 {
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["sqs:ListQueues", "sqs:GetQueueAttributes"],
-      "Resource": "*"
-    }
-  ]
+  "sampleKey1": "sampleValue1",
+  "key2": "{% $states.input.key %}",
+  "key3": 100
 }
+
+Retry on errors
+Retry the task when errors occur. You can specify one or more retry rules, called "retriers".
+Retrier #1Close
+Comment - optional
+Errors
+Specify one or more error(s) that will trigger this retrier. You can select a built-in Amazon States error or enter a custom error name.
+Lambda.ServiceException
+
+Lambda.AWSLambdaException
+
+Lambda.SdkClientException
+
+Lambda.TooManyRequestsException
+
+Interval - optional
+The number of seconds before the first retry attempt.
+1
+seconds
+Must be greater than zero.
+Max attempts - optional
+The maximum number of retry attempts.
+3
+Must be zero or greater.
+Backoff rate - optional
+The multiplier by which the retry interval increases with each attempt.
+2
+Must be greater or equal to 1.0.
+Max delay seconds - new, optional
+The maximum wait time allowed between retry attempts.
+Must be greater than 0 and less than 31622401.
+Add jitter - new, optional
+
+Add jitter on retries to introduce random delays between each retry. This can prevent the system from being overwhelmed by a sudden surge of requests from simultaneous retries. Info
+Remove
+Add new retrier
+Catch errors  Info
+Catch and revert to a fallback state when errors occur. You can specify one or more catch rules, called "catchers".
+Add new catcher
+Timeouts
+TimeoutSeconds - optional
+Fail the state if it runs longer than the specified seconds.
+
+seconds
+Must be greater than zero or use a JSONata expression.
+HeartbeatSeconds - optional
+Fail the state if more time than the specified seconds elapses between heartbeats.
+
+seconds
+Must be greater than zero or use a JSONata expression.
