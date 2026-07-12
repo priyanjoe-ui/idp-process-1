@@ -3000,16 +3000,15 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
         return jsonError(res, 400, 'BadRequest', `Application ${invalidAppId} does not exist`);
       }
 
-      // Minimal starter — a single Task state, nothing wired to a real
-      // function yet. The person fills in the Resource ARN via the
-      // inspector once they land on the canvas.
-      const starterStateName = 'FirstState';
+      // Genuinely empty — StartAt: '' is Studio's own convention for "an
+      // empty slot," rendered on the canvas as a real drop target ("Drag
+      // first state here"), matching AWS Workflow Studio's own pattern
+      // rather than pre-filling a placeholder Task the person has to
+      // notice and configure.
       const definition = {
         Comment: name || workflowId,
-        StartAt: starterStateName,
-        States: {
-          [starterStateName]: { Type: 'Task', Resource: '', End: true },
-        },
+        StartAt: '',
+        States: {},
       };
 
       const item = {
@@ -3095,6 +3094,28 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
   // the current draft. The ONLY route in this whole file that calls the
   // Step Functions API. Never creates a new IAM role — WORKFLOW_ROLE_ARN
   // must already exist and already trust states.amazonaws.com.
+  /**
+   * Finds the first unfilled empty-slot placeholder in a definition, if
+   * any — Studio's convention is an empty string for StartAt/Next/Default
+   * meaning "nothing dropped here yet" (see asl-render-tree.ts on the
+   * frontend for the canvas-side half of this same convention). Returns a
+   * short human-readable description of where it is, or null if the
+   * definition is complete. Deliberately checked here, not just left to
+   * fail inside AWS's own ASL validation with a much less clear error.
+   */
+  function findEmptySlot(definition) {
+    if (!definition.StartAt) return 'the first state';
+    for (const [name, state] of Object.entries(definition.States || {})) {
+      if (state.Type === 'Choice') {
+        for (const rule of state.Choices || []) {
+          if (!rule.Next) return `a branch of "${name}"`;
+        }
+        if (state.Default !== undefined && !state.Default) return `the Default branch of "${name}"`;
+      }
+    }
+    return null;
+  }
+
   app.post('/api/workflows/:workflowId/deploy', async (req, res) => {
     try {
       const { workflowId } = req.params;
@@ -3110,6 +3131,12 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
       const body = existing.body || {};
       const definition = body.definition;
       if (!definition) return jsonError(res, 400, 'BadRequest', 'No definition to deploy.');
+
+      const emptySlotError = findEmptySlot(definition);
+      if (emptySlotError) {
+        return jsonError(res, 400, 'IncompleteDefinition',
+          `This workflow still has an empty placeholder (${emptySlotError}) — drag a state onto it before deploying.`);
+      }
 
       const definitionJson = JSON.stringify(definition);
       let action, stateMachineArn;
