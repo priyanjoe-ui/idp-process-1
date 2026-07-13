@@ -1,0 +1,99 @@
+2026-07-13T00:47:14.258-04:00
+INIT_START Runtime Version: python:3.12.mainlinev2.v14	Runtime Version ARN: arn:aws:lambda:us-east-2::runtime:40182b778d40c8bdb13a6ef86990df74f5066cdb7d40aac1845f6f3fa5a1b20f
+
+INIT_START Runtime Version: python:3.12.mainlinev2.v14 Runtime Version ARN: arn:aws:lambda:us-east-2::runtime:40182b778d40c8bdb13a6ef86990df74f5066cdb7d40aac1845f6f3fa5a1b20f
+2026-07-13T00:47:14.956-04:00
+START RequestId: 74acbc9f-71c7-58dc-9021-de5101c75b12 Version: $LATEST
+
+START RequestId: 74acbc9f-71c7-58dc-9021-de5101c75b12 Version: $LATEST
+2026-07-13T00:47:14.956-04:00
+[INFO]	2026-07-13T04:47:14.956Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Event: 
+{
+    "Records": [
+        {
+            "messageId": "cb4cce22-c352-4c79-ae82-e37e0c3551e8",
+            "receiptHandle": "AQEBOq8XNQ89c0y9bkYm+7RS8gh7cwSYujXblWihsDn1s8VAwiDMeRGi0/bLbJTk283vS6CMO8fNMVRac1aTHKs3fZj649Q4ygvcMLTTOKVMnwYsm8IuW4IvRVZzpGodptSzu0sQ22eH4aOoSg6UyzBDfIE80IMZpxOft1L6EmtRHeL4nbbls7JWZT5E6yUClB1f1jb7Fvym+TKro6QBjtTcRoK6PJrR394WEH/Ke90mwN8HWdA8TIcUZEYQ9cspNjohisXPFJQOy0xfM7xJtq0tiWYI9VeOhAH+7E32IX6tLpYv58m5OUAM2PcgagcZKp9wDkeyoSJJt6WDat+NsJYjnPxKpWqS1Fl//JRMgAiZrCw1b8m9otygTKDH4f6Jc+mEVixWnS2cgSK2adsXGI1RTQ==",
+            "body": "{\"Records\":[{\"eventVersion\":\"2.4\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-east-2\",\"eventTime\":\"2026-07-13T04:47:13.302Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AROAZPPMMW3AR7PY3S3JI:273572@cognizant.com\"},\"requestParameters\":{\"sourceIPAddress\":\"210.18.146.68\"},\"responseElements\":{\"x-amz-request-id\":\"PNDDX7NKD2W1S2RS\",\"x-amz-id-2\":\"FIi+ckrTDjOHa9Qk2JSnJ+KWC0ukhCQc9FKi99rfmsIh8OxJ2W7OBLHAeyczCFDo+kkwCMacNIdExaiu0xRh+s4U8D8NUxntcZ3IllUDdj4=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"idp-ingestion-trigger\",\"bucket\":{\"name\":\"idp-docs-aws-dev\",\"ownerIdentity\":{\"principalId\":\"AAZ6R19HXR470\"},\"arn\":\"arn:aws:s3:::idp-docs-aws-dev\"},\"object\":{\"key\":\"idp/applications/AFLCOR/Import/email/Corr-email-005.zip\",\"size\":15479,\"eTag\":\"cf63c4c30d2ad6a60d0eefe5b92da706\",\"sequencer\":\"006A546DD1470B4FAC\"}}}]}",
+            "attributes": {
+                "ApproximateReceiveCount": "1",
+                "SentTimestamp": "1783918034110",
+                "SenderId": "AROASH5U5TZXDEGJDLSUI:S3-PROD-END",
+                "ApproximateFirstReceiveTimestamp": "1783918034118"
+            },
+            "messageAttributes": {},
+            "md5OfBody": "1671c0a678fe0dbd2b2b8617d7c08252",
+            "eventSource": "aws:sqs",
+            "eventSourceARN": "arn:aws:sqs:us-east-2:651720177345:idp-intake-queue",
+            "awsRegion": "us-east-2"
+        }
+    ]
+}
+
+
+[INFO] 2026-07-13T04:47:14.956Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Event: {"Records": [{"messageId": "cb4cce22-c352-4c79-ae82-e37e0c3551e8", "receiptHandle": "AQEBOq8XNQ89c0y9bkYm+7RS8gh7cwSYujXblWihsDn1s8VAwiDMeRGi0/bLbJTk283vS6CMO8fNMVRac1aTHKs3fZj649Q4ygvcMLTTOKVMnwYsm8IuW4IvRVZzpGodptSzu0sQ22eH4aOoSg6UyzBDfIE80IMZpxOft1L6EmtRHeL4nbbls7JWZT5E6yUClB1f1jb7Fvym+TKro6QBjtTcRoK6PJrR394WEH/Ke90mwN8HWdA8TIcUZEYQ9cspNjohisXPFJQOy0xfM7xJtq0tiWYI9VeOhAH+7E32IX6tLpYv58m5OUAM2PcgagcZKp9wDkeyoSJJt6WDat+NsJYjnPxKpWqS1Fl//JRMgAiZrCw1b8m9otygTKDH4f6Jc+mEVixWnS2cgSK2adsXGI1RTQ==", "body": "{\"Records\":[{\"eventVersion\":\"2.4\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-east-2\",\"eventTime\":\"2026-07-13T04:47:13.302Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AROAZPPMMW3AR7PY3S3JI:273572@cognizant.com\"},\"requestParameters\":{\"sourceIPAddress\":\"210.18.146.68\"},\"responseElements\":{\"x-amz-request-id\":\"PNDDX7NKD2W1S2RS\",\"x-amz-id-2\":\"FIi+ckrTDjOHa9Qk2JSnJ+KWC0ukhCQc9FKi99rfmsIh8OxJ2W7OBLHAeyczCFDo+kkwCMacNIdExaiu0xRh+s4U8D8NUxntcZ3IllUDdj4=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"idp-ingestion-trigger\",\"bucket\":{\"name\":\"idp-docs-aws-dev\",\"ownerIdentity\":{\"principalId\":\"AAZ6R19HXR470\"},\"arn\":\"arn:aws:s3:::idp-docs-aws-dev\"},\"object\":{\"key\":\"idp/applications/AFLCOR/Import/email/Corr-email-005.zip\",\"size\":15479,\"eTag\":\"cf63c4c30d2ad6a60d0eefe5b92da706\",\"sequencer\":\"006A546DD1470B4FAC\"}}}]}", "attributes": {"ApproximateReceiveCount": "1", "SentTimestamp": "1783918034110", "SenderId": "AROASH5U5TZXDEGJDLSUI:S3-PROD-END", "ApproximateFirstReceiveTimestamp": "1783918034118"}, "messageAttributes": {}, "md5OfBody": "1671c0a678fe0dbd2b2b8617d7c08252", "eventSource": "aws:sqs", "eventSourceARN": "arn:aws:sqs:us-east-2:651720177345:idp-intake-queue", "awsRegion": "us-east-2"}]}
+2026-07-13T00:47:14.957-04:00
+[INFO]	2026-07-13T04:47:14.956Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Processing s3://idp-docs-aws-dev/idp/applications/AFLCOR/Import/email/Corr-email-005.zip
+
+[INFO] 2026-07-13T04:47:14.956Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Processing s3://idp-docs-aws-dev/idp/applications/AFLCOR/Import/email/Corr-email-005.zip
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Found 3 CONNECTOR items in config table
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Found 3 CONNECTOR items in config table
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	{'name': 'AFLCOR_Import', 's3Config': {'bucket': 'idp-docs-aws-dev', 'prefix': 'idp/applications/AFLCOR/Import/email', 'fileTypes': []}, 'platform': 'S3', 'direction': 'import', 'appId': 'AFLCOR', 'status': 'enabled'}
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 {'name': 'AFLCOR_Import', 's3Config': {'bucket': 'idp-docs-aws-dev', 'prefix': 'idp/applications/AFLCOR/Import/email', 'fileTypes': []}, 'platform': 'S3', 'direction': 'import', 'appId': 'AFLCOR', 'status': 'enabled'}
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	{'name': 'INS_Import', 's3Config': {'bucket': 'idp-docs-aws-dev', 'prefix': 'idp/applications/CLAIMS/Import/Email/', 'fileTypes': ['.zip']}, 'platform': 'S3', 'direction': 'import', 'appId': 'CLAIMS', 'status': 'disabled'}
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 {'name': 'INS_Import', 's3Config': {'bucket': 'idp-docs-aws-dev', 'prefix': 'idp/applications/CLAIMS/Import/Email/', 'fileTypes': ['.zip']}, 'platform': 'S3', 'direction': 'import', 'appId': 'CLAIMS', 'status': 'disabled'}
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	{'name': 'AFLCOR_Export', 's3Config': {'bucket': 'idp-docs-aws-dev', 'prefix': 'idp/applications/AFLCOR/Export/', 'fileTypes': []}, 'platform': 'S3', 'direction': 'export', 'appId': 'AFLCOR', 'status': 'disabled'}
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 {'name': 'AFLCOR_Export', 's3Config': {'bucket': 'idp-docs-aws-dev', 'prefix': 'idp/applications/AFLCOR/Export/', 'fileTypes': []}, 'platform': 'S3', 'direction': 'export', 'appId': 'AFLCOR', 'status': 'disabled'}
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Checking prefix 'idp/applications/AFLCOR/Import/email/' vs key 'idp/applications/AFLCOR/Import/email/Corr-email-005.zip'
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Checking prefix 'idp/applications/AFLCOR/Import/email/' vs key 'idp/applications/AFLCOR/Import/email/Corr-email-005.zip'
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Parts: ['Corr-email-005.zip']
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Parts: ['Corr-email-005.zip']
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	No Connectors match for s3://idp-docs-aws-dev/idp/applications/AFLCOR/Import/email/Corr-email-005.zip, falling back to path-based parsing
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 No Connectors match for s3://idp-docs-aws-dev/idp/applications/AFLCOR/Import/email/Corr-email-005.zip, falling back to path-based parsing
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Application=AFLCOR SourceType=email File=Corr-email-005.zip
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Application=AFLCOR SourceType=email File=Corr-email-005.zip
+2026-07-13T00:47:15.251-04:00
+[INFO]	2026-07-13T04:47:15.251Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Loading config from DynamoDB table=idp-config index=type-lastModifiedAt-index
+
+[INFO] 2026-07-13T04:47:15.251Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Loading config from DynamoDB table=idp-config index=type-lastModifiedAt-index
+2026-07-13T00:47:15.632-04:00
+[INFO]	2026-07-13T04:47:15.632Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Config loaded: 2 application(s), 2 dictionary(ies)
+
+[INFO] 2026-07-13T04:47:15.632Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Config loaded: 2 application(s), 2 dictionary(ies)
+2026-07-13T00:47:15.891-04:00
+[INFO]	2026-07-13T04:47:15.891Z	74acbc9f-71c7-58dc-9021-de5101c75b12	XML meta: pageOrder=['Claim-Eddie-Maldonado-Echevarria_1_34fd3df6d88f47799090c89577b96a82.TIF', 'Claim-Eddie-Maldonado-Echevarria_2_8e0709dd4f5b4e9580f9813cf849ecae.TIF'] attrs=49
+
+[INFO] 2026-07-13T04:47:15.891Z 74acbc9f-71c7-58dc-9021-de5101c75b12 XML meta: pageOrder=['Claim-Eddie-Maldonado-Echevarria_1_34fd3df6d88f47799090c89577b96a82.TIF', 'Claim-Eddie-Maldonado-Echevarria_2_8e0709dd4f5b4e9580f9813cf849ecae.TIF'] attrs=49
+2026-07-13T00:47:16.171-04:00
+[INFO]	2026-07-13T04:47:16.171Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Allocated queueId=11 batchId=Corr-email-005 batchNumber=20260713.000005
+
+[INFO] 2026-07-13T04:47:16.171Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Allocated queueId=11 batchId=Corr-email-005 batchNumber=20260713.000005
+2026-07-13T00:47:17.272-04:00
+[INFO]	2026-07-13T04:47:17.272Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Resolved state machine for AFLCOR via Workflow mapping: arn:aws:states:us-east-2:651720177345:stateMachine:idp-pipeline
+
+[INFO] 2026-07-13T04:47:17.272Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Resolved state machine for AFLCOR via Workflow mapping: arn:aws:states:us-east-2:651720177345:stateMachine:idp-pipeline
+2026-07-13T00:47:17.533-04:00
+[INFO]	2026-07-13T04:47:17.533Z	74acbc9f-71c7-58dc-9021-de5101c75b12	Started state machine: arn:aws:states:us-east-2:651720177345:execution:idp-pipeline:AFLCOR-q11-1783918037
+
+[INFO] 2026-07-13T04:47:17.533Z 74acbc9f-71c7-58dc-9021-de5101c75b12 Started state machine: arn:aws:states:us-east-2:651720177345:execution:idp-pipeline:AFLCOR-q11-1783918037
+2026-07-13T00:47:17.551-04:00
+END RequestId: 74acbc9f-71c7-58dc-9021-de5101c75b12
+
+END RequestId: 74acbc9f-71c7-58dc-9021-de5101c75b12
+2026-07-13T00:47:17.551-04:00
+REPORT RequestId: 74acbc9f-71c7-58dc-9021-de5101c75b12	Duration: 2595.19 ms	Billed Duration: 3290 ms	Memory Size: 128 MB	Max Memory Used: 99 MB	Init Duration: 694.35 ms	
