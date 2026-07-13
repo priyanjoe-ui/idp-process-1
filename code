@@ -1,0 +1,367 @@
+"""
+Ingestion Lambda (idp-ingestion).
+Shared code is loaded from the idp-shared Lambda Layer.
+Phase 2C-revised: stamps a human-friendly displayId (TM000001, TM000002...)
+on each PAGE record so business users see a clean ID in the UI instead of
+the internal GUID.
+"""
+import io
+import json
+import logging
+import os
+import re
+import uuid
+import zipfile
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import unquote_plus
+import boto3
+from boto3.dynamodb.conditions import Key
+from shared import config_loader, ddb
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+_s3 = boto3.client("s3")
+_sfn = boto3.client("stepfunctions")
+# Separate from the `shared.ddb` module (which handles queue/batch/page
+# records) and from `shared.config_loader` (which still reads application
+# config from S3's document-config.json, not touched here). This is its
+# own, narrow DynamoDB access just for the Connectors config Studio writes.
+_config_table = boto3.resource("dynamodb").Table(os.environ.get("IDP_CONFIG_TABLE", "idp-config"))
+import xml.etree.ElementTree as ET
+# Display ID prefix shown to business users.
+DISPLAY_ID_PREFIX = "TM"
+DISPLAY_ID_WIDTH = 6
+
+def _format_display_id(page_idx: int) -> str:
+    """1 -> 'TM000001', 2 -> 'TM000002', etc."""
+    return f"{DISPLAY_ID_PREFIX}{page_idx:0{DISPLAY_ID_WIDTH}d}"
+
+def _parse_key_path(key: str) -> Tuple[str, str, str]:
+    key = unquote_plus(key)
+    parts = key.split("/")
+    expected_prefix = ["idp", "applications"]
+    if (len(parts) < 6
+        or parts[0] != expected_prefix[0]
+        or parts[1] != expected_prefix[1]
+        or parts[3].lower() != "import"):
+        raise ValueError(
+            f"S3 key '{key}' does not match "
+            "idp/applications/<App>/Import/<Source>/<file>.zip"
+        )
+    return parts[2], parts[4], parts[-1]
+
+def _list_enabled_import_connectors() -> List[Dict[str, Any]]:
+    """Every ENABLED import connector configured in Studio, each carrying
+    its own appId/bucket/prefix. A single application can have more than
+    one (e.g. separate connectors for Fax vs Email intake into the same
+    app), so this returns a list, not a dict keyed by appId.
+
+    Direct primary-key Query on PK='CONNECTOR' -- connectors live in their
+    own flat partition (same pattern Workflows uses in Studio), so no GSI
+    is needed here, unlike the type-index Studio's proxy uses elsewhere."""
+    connectors: List[Dict[str, Any]] = []
+    resp = _config_table.query(
+        KeyConditionExpression=Key("PK").eq("CONNECTOR"),
+    )
+    logger.info("Found %d CONNECTOR items in config table", len(resp.get("Items", [])))
+    for item in resp.get("Items", []):
+        body = item.get("body") or {}
+        logger.info(body)
+        if body.get("direction") != "import" or body.get("status") != "enabled":
+            continue
+        s3_config = body.get("s3Config") or {}
+        if not s3_config.get("bucket") or not s3_config.get("prefix"):
+            continue
+        connectors.append({
+            "appId": body.get("appId"),
+            "bucket": s3_config["bucket"],
+            "prefix": s3_config["prefix"],
+        })
+    return connectors
+
+def _find_application_by_connector(bucket: str, key: str) -> Optional[Tuple[str, str, str]]:
+    """Looks up which application's configured Import connector this
+    (bucket, key) falls under -- a real config-driven lookup, not a fixed
+    assumption about where the app name sits in the path. source_type is
+    whatever segment follows the configured prefix, so different
+    applications aren't forced into the exact same folder depth/shape.
+    Returns None (not an exception) when nothing matches, so the caller
+    can cleanly fall back rather than handling a raised error for what's
+    an entirely expected case (an app that hasn't configured a connector
+    in Studio yet, or has one but it's currently disabled)."""
+    key = unquote_plus(key)
+    for conn in _list_enabled_import_connectors():
+        if conn["bucket"] != bucket:
+            continue
+        prefix = conn["prefix"].rstrip("/") + "/"
+        logger.info("Checking prefix '%s' vs key '%s'", prefix, key)
+        if not key.startswith(prefix):
+            continue
+        remainder = key[len(prefix):]
+        parts = [p for p in remainder.split("/") if p]
+        logger.info("Parts: %s", parts)
+        if len(parts) < 2:
+            continue  # no source-type sub-folder + filename left after the prefix
+        return conn["appId"], parts[0], parts[-1]
+    return None
+
+def _resolve_application_and_source(bucket: str, key: str) -> Tuple[str, str, str]:
+    """Tries the Studio-configured connector lookup first; falls back to
+    the original hardcoded idp/applications/<App>/Import/<Source>/<file>
+    path convention if no connector matches. Keeps every application that
+    hasn't been migrated to a configured connector working exactly as
+    before -- this is additive, not a hard cutover."""
+    matched = _find_application_by_connector(bucket, key)
+    if matched:
+        logger.info("Resolved application via Connectors config: %s", matched[0])
+        return matched
+    logger.info("No Connectors match for s3://%s/%s, falling back to path-based parsing", bucket, key)
+    return _parse_key_path(key)
+
+def _zip_filename_without_ext(filename: str) -> str:
+    if filename.lower().endswith(".zip"):
+        return filename[:-4]
+    return filename
+
+def _read_zip_from_s3(bucket: str, key: str) -> zipfile.ZipFile:
+    resp = _s3.get_object(Bucket=bucket, Key=key)
+    body = resp["Body"].read()
+    return zipfile.ZipFile(io.BytesIO(body))
+
+def _classify_entries(zf: zipfile.ZipFile) -> Tuple[List[str], List[str]]:
+    xml_names: List[str] = []
+    tif_names: List[str] = []
+    for name in zf.namelist():
+        if name.endswith("/"):
+            continue
+        lower = name.lower()
+        if lower.endswith(".xml"):
+            xml_names.append(name)
+        elif lower.endswith(".tif") or lower.endswith(".tiff"):
+            tif_names.append(name)
+    tif_names.sort(key=_natural_key)
+    return xml_names, tif_names
+
+_NUM_RE = re.compile(r"(\d+)")
+
+def _natural_key(s: str) -> List[Any]:
+    return [int(p) if p.isdigit() else p.lower() for p in _NUM_RE.split(s)]
+
+def _parse_xml(xml_bytes: bytes) -> Dict[str, Any]:
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError as e:
+        logger.warning("XML parse error: %s", e)
+        return {"pageOrder": None, "xmlMetadata": {}}
+    page_order: List[str] = []
+    xml_metadata: Dict[str, str] = {}
+    for el in root.iter():
+        tag = el.tag.split("}")[-1]
+        if tag.lower() == "item":
+            for k, v in el.attrib.items():
+                xml_metadata[k] = v
+        elif tag.lower() == "filename" and el.text:
+            page_order.append(el.text.strip())
+    return {
+        "pageOrder": page_order or None,
+        "xmlMetadata": xml_metadata,
+    }
+
+def _pick_document_type(app_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    doc_types = app_cfg.get("DocumentTypes", [])
+    if not doc_types:
+        raise ValueError(
+            f"Application '{app_cfg.get('ApplicationName')}' has no DocumentTypes"
+        )
+    if len(doc_types) > 1:
+        logger.warning("Multiple DocumentTypes configured; Phase 1 uses the first only.")
+    return doc_types[0]
+
+def _empty_fields_for(doc_type: Dict[str, Any]) -> List[Dict[str, Any]]:
+    fields: List[Dict[str, Any]] = []
+    for pt in doc_type.get("PageTypes", []):
+        if pt.get("PageType") == "MainPage":
+            for f in pt.get("Fields", []) or []:
+                fields.append({
+                    "fieldName": f["FieldName"],
+                    "dataType": f.get("DataType"),
+                    "value": None,
+                    "confidence": None,
+                    "validationPassed": False,
+                    "sourcePageId": None,
+                    # Read the Required flag from config rather than
+                    # hardcoding True. Previously every field landed in
+                    # DDB as required=True regardless of config, which
+                    # broke the submit-review validation that reads this
+                    # flag from DDB.
+                    "required": bool(f.get("Required", False)),
+                })
+    return fields
+
+def _find_state_machine_arn_for_application(application: str) -> Optional[str]:
+    """Looks up which deployed Workflow is mapped to this application (via
+    mappedApplicationIds) and returns its stateMachineArn. Direct
+    primary-key Query on PK='WORKFLOW' -- same flat-partition pattern as
+    the Connectors lookup, no GSI needed.
+
+    A single application could in principle be mapped to more than one
+    deployed Workflow -- Studio's own UI should prevent that ambiguity
+    through validation, not something this lookup needs to resolve
+    cleverly, so the first mapped Workflow found with an actual deployed
+    ARN wins. Returns None (not an exception) if no deployed Workflow is
+    mapped to this application, so the caller can cleanly fall back --
+    an application that hasn't been assigned a Workflow yet, or whose
+    Workflow exists only as an undeployed draft, is an entirely expected
+    case, not an error.
+    """
+    resp = _config_table.query(
+        KeyConditionExpression=Key("PK").eq("WORKFLOW"),
+    )
+    for item in resp.get("Items", []):
+        body = item.get("body") or {}
+        mapped = body.get("mappedApplicationIds") or []
+        if application not in mapped:
+            continue
+        arn = body.get("stateMachineArn")
+        if arn:
+            return arn
+    return None
+
+def _start_state_machine(queue_id: int, application: str) -> str:
+    arn = _find_state_machine_arn_for_application(application)
+    if arn:
+        logger.info("Resolved state machine for %s via Workflow mapping: %s", application, arn)
+    else:
+        arn = os.environ["STATE_MACHINE_ARN"]
+        logger.info(
+            "No deployed Workflow mapped to %s, falling back to shared STATE_MACHINE_ARN",
+            application,
+        )
+    exec_name = f"{application}-q{queue_id}-{int(datetime.now().timestamp())}"
+    resp = _sfn.start_execution(
+        stateMachineArn=arn,
+        name=exec_name[:80],
+        input=json.dumps({"queueId": queue_id, "application": application}),
+    )
+    return resp["executionArn"]
+
+def lambda_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
+    logger.info("Event: %s", json.dumps(event)[:2000])
+    results = []
+    for outer_record in event.get("Records", []):
+        # Intake Queue (SQS) sits between S3 and this Lambda: each SQS record's
+        # body is the ORIGINAL S3 event notification, JSON-encoded. Unwrap it.
+        # (A direct S3->Lambda trigger, with no queue, still works too --
+        # those records have "s3" at the top level instead of "body".)
+        if "body" in outer_record and "s3" not in outer_record:
+            inner_event = json.loads(outer_record["body"])
+            s3_records = inner_event.get("Records", [])
+        else:
+            s3_records = [outer_record]
+ 
+        for record in s3_records:
+            try:
+                results.append(_process_record(record))
+            except Exception:
+                logger.exception("Failed to process record")
+                raise
+    return {"processed": results}
+
+def _process_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    bucket = record["s3"]["bucket"]["name"]
+    key = record["s3"]["object"]["key"]
+    logger.info("Processing s3://%s/%s", bucket, key)
+    application, source_type, zip_filename = _resolve_application_and_source(bucket, key)
+    logger.info("Application=%s SourceType=%s File=%s", application, source_type, zip_filename)
+    app_cfg = config_loader.get_application(application)
+    zf = _read_zip_from_s3(bucket, key)
+    xml_names, tif_names = _classify_entries(zf)
+    if not xml_names:
+        raise ValueError(f"No XML found in zip {key}")
+    if not tif_names:
+        raise ValueError(f"No TIFF files found in zip {key}")
+    if len(xml_names) > 1:
+        logger.warning("Multiple XMLs in zip; using the first: %s", xml_names[0])
+    xml_meta = _parse_xml(zf.read(xml_names[0]))
+    logger.info("XML meta: pageOrder=%s attrs=%d",
+                xml_meta.get("pageOrder"),
+                len(xml_meta.get("xmlMetadata") or {}))
+    if xml_meta.get("pageOrder"):
+        tif_names = [n for n in xml_meta["pageOrder"] if n in tif_names]
+        if not tif_names:
+            raise ValueError(f"XML references files but none of them exist in zip {key}")
+    queue_id = ddb.next_queue_id()
+    batch_id = _zip_filename_without_ext(zip_filename)
+    doc_id = str(uuid.uuid4())
+    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    batch_number = ddb.next_batch_number(application, date_str)
+    logger.info("Allocated queueId=%d batchId=%s batchNumber=%s",
+                queue_id, batch_id, batch_number)
+    doc_type = _pick_document_type(app_cfg)
+    document_type_name = doc_type["DocumentTypeName"]
+    processing_prefix = os.environ.get("PROCESSING_PREFIX", "idp/applications")
+    docs_bucket = os.environ["DOCS_BUCKET"]
+    page_ids: List[str] = []
+    for idx, tif_name in enumerate(tif_names, start=1):
+        page_id = str(uuid.uuid4())
+        page_ids.append(page_id)
+        display_id = _format_display_id(idx)
+        tif_bytes = zf.read(tif_name)
+        target_key = f"{processing_prefix}/{application}/Processing/{queue_id}/pages/{idx:04d}.tif"
+        _s3.put_object(
+            Bucket=docs_bucket,
+            Key=target_key,
+            Body=tif_bytes,
+            ContentType="image/tiff",
+            Metadata={
+                "queueId": str(queue_id),
+                "pageId": page_id,
+                "displayId": display_id,
+                "originalName": tif_name,
+            },
+        )
+        ddb.put_page(
+            queue_id=queue_id,
+            page_id=page_id,
+            page_number=idx,
+            s3_key=target_key,
+            page_type="Unclassified",
+            display_id=display_id,
+        )
+    empty_fields = _empty_fields_for(doc_type)
+    ddb.put_document(queue_id=queue_id, doc_id=doc_id,
+                     document_type=document_type_name,
+                     page_ids=page_ids, extracted_fields=empty_fields)
+    job_start = ddb.now_iso()
+    ingestion_start = job_start
+    ddb.put_batch({
+        "queueId": queue_id,
+        "batchId": batch_id,
+        "batchNumber": batch_number,
+        "application": application,
+        "source": source_type,
+        "jobName": f"{application}-ImportJob",
+        "currentTask": "Ingestion",
+        "jobStartTime": job_start,
+        "jobTime": 0,
+        "operator": "system",
+        "documentCount": 1,
+        "pageCount": len(page_ids),
+        "sourceZipKey": key,
+        "xmlMetadata": xml_meta.get("xmlMetadata") or {},
+        "status": "Running",
+        "createdAt": job_start,
+    })
+    ddb.append_task_history(queue_id=queue_id, task_name="Ingestion",
+                            status="Completed", start_time=ingestion_start,
+                            end_time=ddb.now_iso(), operator="system")
+    exec_arn = _start_state_machine(queue_id, application)
+    logger.info("Started state machine: %s", exec_arn)
+    return {
+        "queueId": queue_id,
+        "batchId": batch_id,
+        "batchNumber": batch_number,
+        "application": application,
+        "pageCount": len(page_ids),
+        "executionArn": exec_arn,
+    }
