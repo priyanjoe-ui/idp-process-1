@@ -54,5 +54,39 @@ Must be greater than zero or use a JSONata expression.
 HeartbeatSeconds - optional
 Fail the state if more time than the specified seconds elapses between heartbeats.
 
+[INFO]	2026-07-13T04:36:08.384Z	0578da00-fd70-5e2b-a840-b8ce901b5599	Checking prefix 'idp/applications/AFLCOR/Import/email/' vs key 'idp/applications/AFLCOR/Import/email/Corr-email-004.zip'
+
+[INFO] 2026-07-13T04:36:08.384Z 0578da00-fd70-5e2b-a840-b8ce901b5599 Checking prefix 'idp/applications/AFLCOR/Import/email/' vs key 'idp/applications/AFLCOR/Import/email/Corr-email-004.zip'
+2026-07-13T00:36:08.384-04:00
+[INFO]	2026-07-13T04:36:08.384Z	0578da00-fd70-5e2b-a840-b8ce901b5599	No Connectors match for s3://idp-docs-aws-dev/idp/applications/AFLCOR/Import/email/Corr-email-004.zip, falling back to path-based parsing
+
+[INFO] 2026-07-13T04:36:08.384Z 0578da00-fd70-5e2b-a840-b8ce901b5599 No Connectors match for s3://idp-docs-aws-dev/idp/applications/AFLCOR/Import/email/Corr-email-004.zip, falling back to path-based parsing
+2026-07-13T00:36:08.384-04:00
+[INFO]	2026-07-13T04:36:08.384Z	0578da00-fd70-5e2b-a840-b8ce901b5599	Application=AFLCOR SourceType=email File=Corr-email-004.zip
+
+[INFO] 2026-07-13T04:36:08.384Z 0578da00-fd70-5e2b-a840-b8ce901b5599 Application=AFLCOR SourceType=email File=Corr-email-004.zip
+2026-07-13T00:36:08.384-04:00
+[INFO]	2026-07-13T04:36:08.384Z	0578da00-fd70-5e2b-a840-b8ce901b5599	Loading config from DynamoDB table=idp-config index=type-lastModifiedAt-index
+
+[INFO] 2026-07-13T04:36:08.384Z 0578da00-fd70-5e2b-a840-b8ce901b5599 Loading config from DynamoDB table=idp-config index=type-lastModifiedAt-index
+2026-07-13T00:36:08.765-04:00
+[INFO]	2026-07-13T04:36:08.765Z	0578da00-fd70-5e2b-a840-b8ce901b5599	Config loaded: 2 application(s), 2 dictionary(ies)
+
+[INFO] 2026-07-13T04:36:08.765Z 0578da00-fd70-5e2b-a840-b8ce901b5599 Config loaded: 2 application(s), 2 dictionary(ies)
+2026-07-13T00:36:09.024-04:00
+[INFO]	2026-07-13T04:36:09.024Z	0578da00-fd70-5e2b-a840-b8ce901b5599	XML meta: pageOrder=['Claim-Eddie-Maldonado-Echevarria_1_34fd3df6d88f47799090c89577b96a82.TIF', 'Claim-Eddie-Maldonado-Echevarria_2_8e0709dd4f5b4e9580f9813cf849ecae.TIF'] attrs=49
+
+[INFO] 2026-07-13T04:36:09.024Z 0578da00-fd70-5e2b-a840-b8ce901b5599 XML meta: pageOrder=['Claim-Eddie-Maldonado-Echevarria_1_34fd3df6d88f47799090c89577b96a82.TIF', 'Claim-Eddie-Maldonado-Echevarria_2_8e0709dd4f5b4e9580f9813cf849ecae.TIF'] attrs=49
+2026-07-13T00:36:09.324-04:00
+[INFO]	2026-07-13T04:36:09.324Z	0578da00-fd70-5e2b-a840-b8ce901b5599	Allocated queueId=10 batchId=Corr-email-004 batchNumber=20260713.000004
+
+[INFO] 2026-07-13T04:36:09.324Z 0578da00-fd70-5e2b-a840-b8ce901b5599 Allocated queueId=10 batchId=Corr-email-004 batchNumber=20260713.000004
+2026-07-13T00:36:10.425-04:00
+[INFO]	2026-07-13T04:36:10.425Z	0578da00-fd70-5e2b-a840-b8ce901b5599	Resolved state machine for AFLCOR via Workflow mapping: arn:aws:states:us-east-2:651720177345:stateMachine:idp-pipeline
+
+[INFO] 2026-07-13T04:36:10.425Z 0578da00-fd70-5e2b-a840-b8ce901b5599 Resolved state machine for AFLCOR via Workflow mapping: arn:aws:states:us-east-2:651720177345:stateMachine:idp-pipeline
+2026-07-13T00:36:10.680-04:00
+[INFO]	2026-07-13T04:36:10.680Z	0578da00-fd70-5e2b-a840-b8ce901b5599	Started state machine: arn:aws:states:us-east-2:651720177345:execution:idp-pipeline:AFLCOR-q10-1783917370
+
 seconds
 Must be greater than zero or use a JSONata expression.
