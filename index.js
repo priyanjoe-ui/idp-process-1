@@ -70,10 +70,12 @@ const {
 const {
   LambdaClient,
   ListFunctionsCommand,
+  InvokeCommand,
 } = require('@aws-sdk/client-lambda');
 const sharp = require('sharp');
 const UTIF = require('utif');
 const { PNG } = require('pngjs');
+const { randomUUID } = require('crypto');
  
 // -----------------------------------------------------------------------
 // Configuration
@@ -82,6 +84,8 @@ const REGION       = process.env.AWS_REGION         || 'us-east-1';
 const TABLE        = process.env.IDP_TABLE    || 'idp-batch-tracking';
 const CONFIG_TABLE = process.env.IDP_CONFIG_TABLE   || 'idp-config';
 const CONFIG_TYPE_INDEX = process.env.IDP_CONFIG_TYPE_INDEX || 'type-lastModifiedAt-index';
+const AUDIT_TABLE  = process.env.IDP_STUDIO_AUDIT_TABLE || 'idp-studio-audit';
+const TEST_BENCH_FUNCTION_NAME = process.env.IDP_TEST_BENCH_FUNCTION_NAME || 'idp-test-bench';
 const DOCS_BUCKET  = process.env.DOCS_BUCKET        || 'idp-ecm-datacap-dev';
 const CONFIG_KEY   = process.env.CONFIG_KEY         || 'idp/config/document-config.json';
 const STUDIO_USER  = process.env.STUDIO_USER        || 'studio-admin';
@@ -117,7 +121,15 @@ const _imageCache = new Map();   // s3Key -> { buffer, expiresAt }
 // -----------------------------------------------------------------------
 const app = express();
  
-app.use(express.json({ limit: '2mb' }));
+// Raised from 2mb to 6mb for Test Bench: base64-encoded TIFF/zip samples
+// need real headroom, and this is the limit that actually runs on every
+// request first (route-scoped limits registered later in the file don't
+// help -- Express runs middleware in registration order, so this global
+// one rejects an oversized body before a request ever reaches a
+// per-route override). 6mb matches the Lambda Function URL's own hard
+// payload ceiling -- no point being more restrictive than the real
+// upstream limit already is.
+app.use(express.json({ limit: '6mb' }));
  
 app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl}`);
@@ -2142,14 +2154,63 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
    * ConditionExpression "version = :expected" and throws on mismatch.
    * Increments version and stamps timestamps on success.
    */
-  async function ddbConfigPutRow(item, expectedVersion) {
+  /** Human-readable label for an audit entry, pulled from whatever
+   *  display-name-ish field a row's body has -- falls back to the row's
+   *  own id (PK/SK-derived) if nothing better is available. */
+  function auditResourceName(resourceType, resourceId, body) {
+    body = body || {};
+    switch (resourceType) {
+      case 'APPLICATION': return body.DisplayName || body.ApplicationName || resourceId;
+      case 'DOC_TYPE':    return body.DisplayName || body.DocumentTypeName || resourceId;
+      case 'DICTIONARY':  return resourceId;
+      case 'CONNECTOR':   return body.name || resourceId;
+      case 'WORKFLOW':    return body.name || body.title || resourceId;
+      default:            return resourceId;
+    }
+  }
+
+  /**
+   * Writes one row to the dedicated idp-studio-audit table -- deliberately
+   * separate from idp-config (per direction: a CRUD write to config should
+   * ALSO produce an audit entry, not be conflated with the config data
+   * itself). Single flat partition (PK='AUDIT') with a sortable SK
+   * (ISO timestamp + a UUID for uniqueness) -- a plain Query on that one
+   * partition, ScanIndexForward:false, Limit:N gives "most recent N
+   * entries" with no GSI needed, and this is Studio-admin-CRUD volume
+   * (edits, not pipeline events), nowhere near partition throughput limits.
+   *
+   * Audit-write failures are logged but never thrown -- a broken audit
+   * table must never block the actual CRUD operation it's describing.
+   */
+  async function writeAuditEntry({ operator, action, resourceType, resourceId, resourceName, details }) {
+    const ts = nowIso();
+    const item = {
+      PK: 'AUDIT',
+      SK: `${ts}#${randomUUID()}`,
+      action,          // 'create' | 'update' | 'delete' | 'deploy'
+      resourceType,    // 'APPLICATION' | 'DOC_TYPE' | 'DICTIONARY' | 'CONNECTOR' | 'WORKFLOW'
+      resourceId,
+      resourceName:    resourceName || resourceId,
+      operator:        operator || 'anonymous',
+      timestamp:       ts,
+      details:         details || null,
+    };
+    try {
+      await ddb.send(new PutCommand({ TableName: AUDIT_TABLE, Item: item }));
+    } catch (e) {
+      console.error('Failed to write audit entry (CRUD operation still succeeded):', e);
+    }
+  }
+
+  async function ddbConfigPutRow(item, expectedVersion, operator, actionOverride) {
     const nextVersion = (expectedVersion == null) ? 1 : expectedVersion + 1;
     const now = nowIso();
+    const who = operator || STUDIO_USER;
     const finalItem = {
       ...item,
       version: nextVersion,
       lastModifiedAt: now,
-      lastModifiedBy: STUDIO_USER,
+      lastModifiedBy: who,
     };
     const params = {
       TableName: CONFIG_TABLE,
@@ -2165,6 +2226,13 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
     try {
       await ddb.send(new PutCommand(params));
       invalidateConfigCache();
+      await writeAuditEntry({
+        operator: who,
+        action: actionOverride || (expectedVersion == null ? 'create' : 'update'),
+        resourceType: item.type,
+        resourceId: `${item.PK}#${item.SK}`,
+        resourceName: auditResourceName(item.type, item.PK, item.body),
+      });
       return finalItem;
     } catch (e) {
       if (e.name === 'ConditionalCheckFailedException') {
@@ -2178,12 +2246,19 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
     }
   }
 
-  async function ddbConfigDelete(pk, sk) {
+  async function ddbConfigDelete(pk, sk, operator, resourceType, resourceName) {
     await ddb.send(new DeleteCommand({
       TableName: CONFIG_TABLE,
       Key: { PK: pk, SK: sk },
     }));
     invalidateConfigCache();
+    await writeAuditEntry({
+      operator: operator || STUDIO_USER,
+      action: 'delete',
+      resourceType: resourceType || 'UNKNOWN',
+      resourceId: `${pk}#${sk}`,
+      resourceName: resourceName || pk,
+    });
   }
 
   // ─── STUDIO: response shape helpers ─────────────────────────────────────
@@ -2357,7 +2432,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
           ClassificationMode: classificationMode || 'Sequential',
         },
       };
-      const written = await ddbConfigPutRow(item, null);
+      const written = await ddbConfigPutRow(item, null, getOperator(req));
       res.status(201).json(toAppRecord(written, []));
     } catch (e) {
       console.error('POST /api/applications error:', e);
@@ -2381,7 +2456,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
         ClassificationMode: classificationMode ?? body.ClassificationMode ?? 'Sequential',
       };
       const item = { PK: `APP#${appId}`, SK: 'META', type: 'APPLICATION', body: merged };
-      const written = await ddbConfigPutRow(item, expected);
+      const written = await ddbConfigPutRow(item, expected, getOperator(req));
       const dtRows = await ddbConfigListDocTypes(appId);
       res.json(toAppRecord(written, dtRows));
     } catch (e) {
@@ -2395,11 +2470,12 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
   app.delete('/api/applications/:appId', async (req, res) => {
     try {
       const { appId } = req.params;
+      const operator = getOperator(req);
       const dtRows = await ddbConfigListDocTypes(appId);
       for (const dt of dtRows) {
-        await ddbConfigDelete(dt.PK, dt.SK);
+        await ddbConfigDelete(dt.PK, dt.SK, operator, 'DOC_TYPE', auditResourceName('DOC_TYPE', dt.PK, dt.body));
       }
-      await ddbConfigDelete(`APP#${appId}`, 'META');
+      await ddbConfigDelete(`APP#${appId}`, 'META', operator, 'APPLICATION', appId);
 
       // Workflows aren't owned by this application (they're shared,
       // mappable to any number of apps) — deleting the app doesn't delete
@@ -2420,7 +2496,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
               type: 'WORKFLOW',
               body: { ...row.body, mappedApplicationIds: mapped.filter(id => id !== appId) },
             };
-            await ddbConfigPutRow(item, row.version);
+            await ddbConfigPutRow(item, row.version, operator);
           }
         }
       } catch (cleanupError) {
@@ -2531,7 +2607,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
         body:   dtBody,
         status: 'draft',
       };
-      const written = await ddbConfigPutRow(item, null);
+      const written = await ddbConfigPutRow(item, null, getOperator(req));
       res.status(201).json(toDocTypeRecord(written));
     } catch (e) {
       console.error('POST /api/applications/:appId/document-types error:', e);
@@ -2555,7 +2631,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
         body:   body   || existing.body,
         status: status || existing.status || 'active',
       };
-      const written = await ddbConfigPutRow(item, expected);
+      const written = await ddbConfigPutRow(item, expected, getOperator(req));
       res.json(toDocTypeRecord(written));
     } catch (e) {
       if (e.code === 'VersionConflict') {
@@ -2569,7 +2645,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
   app.delete('/api/applications/:appId/document-types/:docTypeId', async (req, res) => {
     try {
       const { appId, docTypeId } = req.params;
-      await ddbConfigDelete(`APP#${appId}`, `DT#${docTypeId}`);
+      await ddbConfigDelete(`APP#${appId}`, `DT#${docTypeId}`, getOperator(req), 'DOC_TYPE', docTypeId);
       res.status(204).end();
     } catch (e) {
       console.error('DELETE /api/applications/:appId/document-types/:docTypeId error:', e);
@@ -2621,7 +2697,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
         type: 'DICTIONARY',
         body: { options },
       };
-      const written = await ddbConfigPutRow(item, expected);
+      const written = await ddbConfigPutRow(item, expected, getOperator(req));
       res.json(toDictionaryRecord(written));
     } catch (e) {
       if (e.code === 'VersionConflict') return respondVersionConflict(res, 'DICTIONARY', req.params.name);
@@ -2797,7 +2873,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
         // enabled. No accidental live routing from an incomplete connector.
         body: { name, direction, platform, appId, status: 'disabled' },
       };
-      const written = await ddbConfigPutRow(item, null);
+      const written = await ddbConfigPutRow(item, null, getOperator(req));
       res.status(201).json(toConnectorRecord(written));
     } catch (e) {
       console.error('POST /api/connectors error:', e);
@@ -2834,7 +2910,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
           ...(s3Config !== undefined ? { s3Config } : {}),
         },
       };
-      const written = await ddbConfigPutRow(item, expected);
+      const written = await ddbConfigPutRow(item, expected, getOperator(req));
       res.json(toConnectorRecord(written));
     } catch (e) {
       if (e.code === 'VersionConflict') {
@@ -2847,7 +2923,9 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
 
   app.delete('/api/connectors/:connectorId', async (req, res) => {
     try {
-      await ddbConfigDelete('CONNECTOR', req.params.connectorId);
+      const existing = await ddbConfigGet('CONNECTOR', req.params.connectorId);
+      await ddbConfigDelete('CONNECTOR', req.params.connectorId, getOperator(req), 'CONNECTOR',
+        existing ? auditResourceName('CONNECTOR', req.params.connectorId, existing.body) : req.params.connectorId);
       res.status(204).end();
     } catch (e) {
       console.error('DELETE /api/connectors/:connectorId error:', e);
@@ -2982,6 +3060,70 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
     }
   });
 
+  // Backs Studio's dashboard "Recent activity" card. Single flat partition
+  // (PK='AUDIT'), so this is one cheap Query, no GSI/scan involved --
+  // ScanIndexForward:false gives most-recent-first directly from the
+  // sortable SK (ISO timestamp + UUID).
+  // Studio's Test Bench -- classification + extraction against an
+  // uploaded sample, synchronously, no Step Functions/SQS/DynamoDB batch
+  // records involved at all. A plain Lambda invoke() to a dedicated
+  // Lambda (idp-test-bench) that reuses the exact same classification/
+  // extraction logic the real pipeline does.
+  //
+  // Body size limit lives on the global express.json() middleware near the
+  // top of this file (raised to 6mb) -- NOT here. A route-scoped limit was
+  // tried first and didn't work: Express runs middleware in registration
+  // order, so the earlier global limit rejects an oversized body before a
+  // request ever reaches a per-route override. 6mb matches the Lambda
+  // Function URL's own hard payload ceiling, which is the real limit on
+  // how large a test sample can be regardless of what Express is
+  // configured to accept -- there's no way around that ceiling short of
+  // routing large samples through S3 instead of this direct-invoke path.
+  app.post('/api/test-bench/run', async (req, res) => {
+    try {
+      const { applicationId, documentTypeId, fileName, fileBase64 } = req.body || {};
+      if (!applicationId || !documentTypeId || !fileName || !fileBase64) {
+        return jsonError(res, 400, 'BadRequest',
+          'applicationId, documentTypeId, fileName, and fileBase64 are all required');
+      }
+      const resp = await lambdaClient.send(new InvokeCommand({
+        FunctionName: TEST_BENCH_FUNCTION_NAME,
+        InvocationType: 'RequestResponse',
+        Payload: Buffer.from(JSON.stringify({ applicationId, documentTypeId, fileName, fileBase64 })),
+      }));
+      const payloadStr = Buffer.from(resp.Payload || []).toString('utf-8');
+      const payload = payloadStr ? JSON.parse(payloadStr) : {};
+      if (resp.FunctionError) {
+        // Lambda ran but raised (e.g. our own ValueError for an
+        // unsupported file type, or 'Document Type not found') --
+        // payload.errorMessage is the exception text, safe to surface
+        // directly since it's written for exactly this purpose.
+        return jsonError(res, 400, 'TestBenchError', payload.errorMessage || 'Test Bench run failed');
+      }
+      res.json(payload);
+    } catch (e) {
+      console.error('POST /api/test-bench/run error:', e);
+      jsonError(res, 500, 'InternalError', e.message);
+    }
+  });
+
+  app.get('/api/audit-log', async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+      const resp = await ddb.send(new QueryCommand({
+        TableName: AUDIT_TABLE,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: { ':pk': 'AUDIT' },
+        ScanIndexForward: false,
+        Limit: limit,
+      }));
+      res.json({ entries: resp.Items || [] });
+    } catch (e) {
+      console.error('GET /api/audit-log error:', e);
+      jsonError(res, 500, 'InternalError', e.message);
+    }
+  });
+
   app.post('/api/workflows', async (req, res) => {
     try {
       const { workflowId, name, applicationIds } = req.body || {};
@@ -3022,7 +3164,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
           mappedApplicationIds: applicationIds || [],
         },
       };
-      const written = await ddbConfigPutRow(item, null);
+      const written = await ddbConfigPutRow(item, null, getOperator(req));
       res.status(201).json(toWorkflowRecord(written));
     } catch (e) {
       console.error('POST /api/workflows error:', e);
@@ -3069,7 +3211,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
           ...(mappedApplicationIds !== undefined ? { mappedApplicationIds } : {}),
         },
       };
-      const written = await ddbConfigPutRow(item, expected);
+      const written = await ddbConfigPutRow(item, expected, getOperator(req));
       res.json(toWorkflowRecord(written));
     } catch (e) {
       if (e.code === 'VersionConflict') {
@@ -3082,7 +3224,9 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
 
   app.delete('/api/workflows/:workflowId', async (req, res) => {
     try {
-      await ddbConfigDelete('WORKFLOW', req.params.workflowId);
+      const existing = await ddbConfigGet('WORKFLOW', req.params.workflowId);
+      await ddbConfigDelete('WORKFLOW', req.params.workflowId, getOperator(req), 'WORKFLOW',
+        existing ? auditResourceName('WORKFLOW', req.params.workflowId, existing.body) : req.params.workflowId);
       res.status(204).end();
     } catch (e) {
       console.error('DELETE /api/workflows/:workflowId error:', e);
@@ -3168,7 +3312,7 @@ app.post('/api/batches/:queueId/save-draft', async (req, res) => {
         type: 'WORKFLOW',
         body: { ...body, status: 'deployed', stateMachineArn },
       };
-      const written = await ddbConfigPutRow(item, expected);
+      const written = await ddbConfigPutRow(item, expected, getOperator(req), 'deploy');
 
       res.json({ stateMachineArn, action, version: written.version });
     } catch (e) {
